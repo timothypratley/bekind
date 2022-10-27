@@ -1,5 +1,7 @@
 (ns bekind.handler
   (:require
+    [bekind.db :as db]
+    [clojure.pprint :as pprint]
     [reitit.ring :as ring]
     [reitit.coercion.spec]
     [reitit.swagger :as swagger]
@@ -10,89 +12,100 @@
     [reitit.ring.middleware.exception :as exception]
     [reitit.ring.middleware.multipart :as multipart]
     [reitit.ring.middleware.parameters :as parameters]
-    ;; Uncomment to use
-    ; [reitit.ring.middleware.dev :as dev]
-    [muuntaja.core :as m]
-    [clojure.java.io :as io]))
+    [muuntaja.core :as m]))
+
+(defn plus [x y]
+  (- x y))
+
+;; In Memory
+
+(defonce db (atom []))
+
+(defn add-item [item]
+  (swap! db conj item))
+
+(defn vec-remove [v idx]
+  (into
+    (subvec v 0 idx)
+    (subvec v (inc idx))))
+
+(defn remove-item [item]
+  (let [idx (.indexOf @db item)]
+    (when (>= idx 0)
+      (swap! db vec-remove idx))))
+
+(defn list-items []
+  @db)
+
+;; ----
+
+(defn cart [body]
+  (pprint/pprint body)
+  (let [{{:keys [action parameters]} :result} body
+        {:keys [item]} parameters]
+    (condp = action
+      "item.add" (db/add-item item)
+      "item.remove" (db/remove-item item)
+      "item.list" ())
+    {"action" action
+     "item" item
+     "list" (db/list-items)}))
+
+(def routes
+  [["/swagger.json"
+    {:get {:no-doc  true
+           :swagger {:info {:title       "my-api"
+                            :description "with reitit-ring"}}
+           :handler (swagger/create-swagger-handler)}}]
+
+   ["/cart"
+    {:post {:summary    "this is the cart"
+            :parameters {:body any?}
+            :responses  {200 {:body {:result any?}}}
+            :handler    (fn [{{in-body :body} :parameters}]
+                          {:status 200
+                           :body   {:result (cart in-body)}})}}]
+
+   ["/math"
+    {:swagger {:tags ["math"]}}
+
+    ["/plus"
+     {:get  {:summary    "plus with spec query parameters"
+             :parameters {:query {:x int?
+                                  :y int?}}
+             :responses  {200 {:body {:total int?}}}
+             :handler    (fn [{{{:keys [x y]} :query} :parameters}]
+                           {:status 200
+                            :body   {:total (plus x y)}})}
+      :post {:summary    "plus with spec body parameters"
+             :parameters {:body {:x int?
+                                 :y int?}}
+             :responses  {200 {:body {:total int?}}}
+             :handler    (fn [{{{:keys [x y]} :body} :parameters}]
+                           {:status 200
+                            :body   {:total (plus x y)}})}}]]])
 
 (def app
   (ring/ring-handler
     (ring/router
-      [["/swagger.json"
-        {:get {:no-doc true
-               :swagger {:info {:title "my-api"
-                                :description "with reitit-ring"}}
-               :handler (swagger/create-swagger-handler)}}]
+      routes
+      {:exception pretty/exception
+       :data      {:coercion   reitit.coercion.spec/coercion
+                   :muuntaja   m/instance
+                   :middleware [swagger/swagger-feature
+                                parameters/parameters-middleware
+                                muuntaja/format-negotiate-middleware
+                                muuntaja/format-response-middleware
+                                (exception/create-exception-middleware
+                                  {::exception/default (partial exception/wrap-log-to-console exception/default-handler)})
+                                muuntaja/format-request-middleware
+                                coercion/coerce-response-middleware
+                                coercion/coerce-request-middleware
+                                multipart/multipart-middleware]}})
 
-       ["/files"
-        {:swagger {:tags ["files"]}}
-
-        ["/upload"
-         {:post {:summary "upload a file"
-                 :parameters {:multipart {:file multipart/temp-file-part}}
-                 :responses {200 {:body {:name string?, :size int?}}}
-                 :handler (fn [{{{:keys [file]} :multipart} :parameters}]
-                            {:status 200
-                             :body {:name (:filename file)
-                                    :size (:size file)}})}}]
-
-        ["/download"
-         {:get {:summary "downloads a file"
-                :swagger {:produces ["image/png"]}
-                :handler (fn [_]
-                           {:status 200
-                            :headers {"Content-Type" "image/png"}
-                            :body (-> "reitit.png"
-                                      (io/resource)
-                                      (io/input-stream))})}}]]
-
-       ["/math"
-        {:swagger {:tags ["math"]}}
-
-        ["/plus"
-         {:get {:summary "plus with spec query parameters"
-                :parameters {:query {:x int?
-                                     :y int?}}
-                :responses {200 {:body {:total int?}}}
-                :handler (fn [{{{:keys [x y]} :query} :parameters}]
-                           {:status 200
-                            :body {:total (+ x y)}})}
-          :post {:summary "plus with spec body parameters"
-                 :parameters {:body {:x int?
-                                     :y int?}}
-                 :responses {200 {:body {:total int?}}}
-                 :handler (fn [{{{:keys [x y]} :body} :parameters}]
-                            {:status 200
-                             :body {:total (+ x y)}})}}]]]
-
-      {;;:reitit.middleware/transform dev/print-request-diffs ;; pretty diffs
-       ;;:validate spec/validate ;; enable spec validation for route data
-       ;;:reitit.spec/wrap spell/closed ;; strict top-level validation
-       :exception pretty/exception
-       :data {:coercion reitit.coercion.spec/coercion
-              :muuntaja m/instance
-              :middleware [;; swagger feature
-                           swagger/swagger-feature
-                           ;; query-params & form-params
-                           parameters/parameters-middleware
-                           ;; content-negotiation
-                           muuntaja/format-negotiate-middleware
-                           ;; encoding response body
-                           muuntaja/format-response-middleware
-                           ;; exception handling
-                           (exception/create-exception-middleware
-                             {::exception/default (partial exception/wrap-log-to-console exception/default-handler)})
-                           ;; decoding request body
-                           muuntaja/format-request-middleware
-                           ;; coercing response bodys
-                           coercion/coerce-response-middleware
-                           ;; coercing request parameters
-                           coercion/coerce-request-middleware
-                           ;; multipart
-                           multipart/multipart-middleware]}})
     (ring/routes
       (swagger-ui/create-swagger-ui-handler
-        {:path "/"
-         :config {:validatorUrl nil
+        {:path   "/"
+         :config {:validatorUrl     nil
                   :operationsSorter "alpha"}})
       (ring/create-default-handler))))

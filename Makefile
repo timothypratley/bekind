@@ -1,18 +1,21 @@
-.PHONY: all setup serve update test lint
+.PHONY: all setup serve host update test lint
 
 all: setup test
 
 setup:
 	clojure -P
 
+test:
+	clojure -M:dev:test
+
 serve:
 	clojure -M:serve
 
+host:
+	ngrok http 3000
+
 update:
 	clojure -M:outdated --every --write
-
-test:
-	clojure -M:dev:test
 
 lint:
 	clojure -M:lint

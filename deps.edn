@@ -1,8 +1,12 @@
 {:paths   ["src"]
+
  :deps    {org.clojure/clojure     {:mvn/version "1.11.1"}
            metosin/reitit          {:mvn/version "0.5.18"}
            metosin/malli           {:mvn/version "0.9.2"}
-           ring/ring-jetty-adapter {:mvn/version "1.7.1"}}
+           ring/ring-jetty-adapter {:mvn/version "1.9.6"}
+           org.clojure/java.jdbc   {:mvn/version "0.7.12"}
+           org.xerial/sqlite-jdbc  {:mvn/version "3.39.3.0"}}
+
  :aliases {:serve    {:main-opts ["-m" "bekind.main"]}
 
            :dev      {:extra-paths ["test"]}

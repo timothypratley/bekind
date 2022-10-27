@@ -9,6 +9,12 @@ written in Clojure, based on Reitit.
 
 This is a toy example only.
 
+== Setup
+
+Requires Java and Clojure to be installed
+
+link:https://clojure.org/guides/install_clojure[Install Clojure]
+
 == Usage
 
 For common tasks, see the link:Makefile[Makefile]
