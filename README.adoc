@@ -1,0 +1,26 @@
+= bekind
+
+++++
+<img src="be-kind-cupcake.png" width=200 align="right" />
+++++
+
+A backend api for spreading kindness,
+written in Clojure, based on Reitit.
+
+This is a toy example only.
+
+== Usage
+
+For common tasks, see the link:Makefile[Makefile]
+
+To run the server:
+
+----
+make serve
+----
+
+To share it with the world:
+
+----
+ngrok http 3000
+----
